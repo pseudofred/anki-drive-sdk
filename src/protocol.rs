@@ -1,5 +1,6 @@
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use scroll::{self, ctx, Pread, Pwrite};
+use std::ops::Add;
 
 pub const ANKI_VEHICLE_MSG_MAX_SIZE: usize = 20;
 pub const ANKI_VEHICLE_MSG_PAYLOAD_MAX_SIZE: usize = 18;
@@ -556,7 +557,7 @@ impl<'a> ctx::TryFromCtx<'a, scroll::Endian> for AnkiVehicleMsgLocalisationTrans
     }
 }
 
-#[derive(Debug, PartialEq, TryFromPrimitive, IntoPrimitive)]
+#[derive(Debug, PartialEq, Clone, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum IntersectionCode {
     None = 0,
@@ -753,9 +754,11 @@ impl ctx::TryIntoCtx<scroll::Endian> for &AnkiVehicleLightConfig {
     type Error = scroll::Error;
     fn try_into_ctx(self, data: &mut [u8], ctx: scroll::Endian) -> Result<usize, Self::Error> {
         // TODO: This might break if a bigger size data is inputted.
-        if data.len() < ANKI_VEHICLE_LIGHT_CONFIG_SIZE {
+        if data.len() < ANKI_VEHICLE_LIGHT_CONFIG_SIZE || data.len() > ANKI_VEHICLE_MSG_MAX_SIZE {
             return Err((scroll::Error::Custom(
-                "Not enough space available in byte array".to_string(),
+                "Invalid space requirements in byte array. data_len:"
+                    .to_string()
+                    .add(&*(data.len().to_string())),
             ))
             .into());
         }

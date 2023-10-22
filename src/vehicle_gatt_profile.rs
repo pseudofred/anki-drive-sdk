@@ -1,23 +1,14 @@
 #![allow(unused)]
-pub const ANKI_STR_SERVICE_UUID: &str = "BE15BEEF-6186-407E-8381-0BD89C4D8DF4";
-pub const ANKI_U128_SERVICE_UUID: u128 = 0xBE15BEEF_6186_407E_8381_0BD89C4D8DF4;
-pub const ANKI_SERVICE_UUID: [u8; 16] = [
-    0xbe, 0x15, 0xbe, 0xef, 0x61, 0x68, 0x40, 0x7e, 0x83, 0x81, 0x0b, 0xd8, 0x9c, 0x4d, 0x8d, 0xf4,
-];
-pub const ANKI_SERVICE_UUID_LE: [u8; 16] = [
-    0xf4, 0x8d, 0x4d, 0x9c, 0xd8, 0x0b, 0x81, 0x83, 0x7e, 0x40, 0x86, 0x61, 0xef, 0xbe, 0x15, 0xbe,
-];
 
-pub const ANKI_STR_CHR_READ_UUID: &str = "BE15BEE0-6186-407E-8381-0BD89C4D8DF4";
-pub const ANKI_U128_CHR_READ_UUID: u128 = 0xBE15BEE0_6186_407E_8381_0BD89C4D8DF4;
-pub const ANKI_CHR_READ_UUID: [u8; 16] = [
-    0xbe, 0x15, 0xbe, 0xe0, 0x61, 0x68, 0x40, 0x7e, 0x83, 0x81, 0x0b, 0xd8, 0x9c, 0x4d, 0x8d, 0xf4,
-];
+use uuid::{uuid, Uuid};
 
-pub const ANKI_STR_CHR_WRITE_UUID: &str = "BE15BEE1-6186-407E-8381-0BD89C4D8DF4";
-pub const ANKI_U128_CHR_WRITE_UUID: u128 = 0xBE15BEE1_6186_407E_8381_0BD89C4D8DF4;
-pub const ANKI_CHR_WRITE_UUID: [u8; 16] = [
-    0xbe, 0x15, 0xbe, 0xe1, 0x61, 0x68, 0x40, 0x7e, 0x83, 0x81, 0x0b, 0xd8, 0x9c, 0x4d, 0x8d, 0xf4,
-];
+pub const ANKI_SERVICE_UUID: Uuid = uuid!["BE15BEEF-6186-407E-8381-0BD89C4D8DF4"];
+pub const ANKI_U128_SERVICE_UUID: u128 = 0xBE15BEEF6186407E83810BD89C4D8DF4;
+
+pub const ANKI_CHR_READ_UUID: Uuid = uuid!["BE15BEE0-6186-407E-8381-0BD89C4D8DF4"];
+pub const ANKI_U128_CHR_READ_UUID: u128 = 0xBE15BEE06186407E83810BD89C4D8DF4;
+
+pub const ANKI_CHR_WRITE_UUID: Uuid = uuid!["BE15BEE1-6186-407E-8381-0BD89C4D8DF4"];
+pub const ANKI_U128_CHR_WRITE_UUID: u128 = 0xBE15BEE06186407E83810BD89C4D8DF4;
 
 //TODO: implement comparators for uuids, could do this in its own module like original drive sdk.

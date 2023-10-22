@@ -1,10 +1,17 @@
 [package]
-name = "drive_sdk"
+name = "anki-drive-sdk"
 version = "0.1.0"
 edition = "2021"
+authors = ["pseudofred"]
+license = "MIT"
+description = "This is an implementation of the ANKI Drive protocol in Rust."
+repository = "https://github.com/pseudofred/anki-drive-sdk"
+readme = "README.md"
+keywords = ["anki","drive","ANKIDrive","protocol","sdk"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 scroll = "0.11.0"
 num_enum = "0.7.0"
+uuid = "1.5.0"

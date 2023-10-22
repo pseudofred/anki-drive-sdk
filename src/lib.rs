@@ -1,28 +1,32 @@
 extern crate core;
 
+use crate::advertisement::AnkiVehicleState;
 use scroll::Pwrite;
 
 use crate::protocol::{
-    anki_vehicle_msg_change_lane, anki_vehicle_msg_set_sdk_mode,
-    AnkiVehicleMsgBatteryLevelResponse, AnkiVehicleMsgChangeLane,
-    AnkiVehicleMsgLocalisationIntersectionUpdate, AnkiVehicleMsgLocalisationPositionUpdate,
-    AnkiVehicleMsgLocalisationTransitionUpdate, AnkiVehicleMsgOffsetFromRoadCentreUpdate,
-    AnkiVehicleMsgSdkMode, AnkiVehicleMsgVersionResponse, IntersectionCode,
+    anki_vehicle_msg_change_lane, anki_vehicle_msg_get_battery_level, anki_vehicle_msg_get_version,
+    anki_vehicle_msg_set_offset_from_road_centre, anki_vehicle_msg_set_sdk_mode,
+    anki_vehicle_msg_set_speed, AnkiVehicleMsg, AnkiVehicleMsgBatteryLevelResponse,
+    AnkiVehicleMsgChangeLane, AnkiVehicleMsgLocalisationIntersectionUpdate,
+    AnkiVehicleMsgLocalisationPositionUpdate, AnkiVehicleMsgLocalisationTransitionUpdate,
+    AnkiVehicleMsgOffsetFromRoadCentreUpdate, AnkiVehicleMsgSdkMode,
+    AnkiVehicleMsgSetOffsetFromRoadCentre, AnkiVehicleMsgSetSpeed, AnkiVehicleMsgVersionResponse,
+    IntersectionCode, ANKI_VEHICLE_MSG_BATTERY_LEVEL_REQUEST_SIZE,
     ANKI_VEHICLE_MSG_CHANGE_LANE_SIZE, ANKI_VEHICLE_MSG_SDK_MODE_SIZE,
-    ANKI_VEHICLE_SDK_OPTION_OVERRIDE_LOCALIZATION,
+    ANKI_VEHICLE_MSG_SET_OFFSET_FROM_ROAD_CENTRE_SIZE, ANKI_VEHICLE_MSG_SET_SPEED_SIZE,
+    ANKI_VEHICLE_MSG_VERSION_REQUEST_SIZE, ANKI_VEHICLE_SDK_OPTION_OVERRIDE_LOCALIZATION,
 };
 
 pub mod advertisement;
 pub mod protocol;
 pub mod vehicle_gatt_profile;
 
-pub struct AnkiVehicle<'a> {
-    name: &'a str,
-    bt_address: &'a str,
-
+#[derive(Debug, Clone)]
+pub struct AnkiVehicleData {
+    name: String,
+    state: AnkiVehicleState,
     version: u16,
     battery_level: u16,
-    sdk_mode_on: bool,
 
     // Position Info
     speed_mm_per_sec: u16,
@@ -51,35 +55,92 @@ pub struct AnkiVehicle<'a> {
     //TODO: Lighting
 }
 
-impl<'a> AnkiVehicle<'a> {
-    pub fn new(mut self, name: &'a str, bt_address: &'a str) {
-        self.name = name;
-        self.bt_address = bt_address;
+impl AnkiVehicleData {
+    pub fn new() -> AnkiVehicleData {
+        AnkiVehicleData {
+            name: "Anki Vehicle".to_string(),
+            state: AnkiVehicleState {
+                low_battery: false,
+                full_battery: false,
+                on_charger: false,
+            },
+            version: 0,
+            battery_level: 0,
+            speed_mm_per_sec: 0,
+            offset_from_road_centre_mm: 0.0,
+            location_id: 0,
+            parsing_flags: 0,
+            last_desired_speed_mm_per_sec: 0,
+            last_desired_lane_change_speed_mm_per_sec: 0,
+            road_piece_idx_prev: 0,
+            road_piece_idx: 0,
+            uphill_counter: 0,
+            downhill_counter: 0,
+            left_wheel_dist_cm: 0,
+            right_wheel_dist_cm: 0,
+            intersection_code: IntersectionCode::None,
+            is_exiting_intersection: 0,
+            mm_since_last_transition_bar: 0,
+            mm_since_last_intersection_code: 0,
+        }
     }
 
-    pub fn configure(self) -> Vec<Vec<u8>> {
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
+
+    pub fn set_state(&mut self, state: AnkiVehicleState) {
+        self.state = state;
+    }
+
+    pub fn set_version(&mut self, version: u16) {
+        self.version = version;
+    }
+
+    pub fn configure(&mut self) -> Vec<Vec<u8>> {
         let mut commands: Vec<Vec<u8>> = Vec::new();
-
-        let msg: AnkiVehicleMsgChangeLane = anki_vehicle_msg_change_lane(300, 2500, 0.0);
-        let mut lane_reset = [0u8; ANKI_VEHICLE_MSG_CHANGE_LANE_SIZE]; // TODO: fix lifetimes problem
-        let offset = lane_reset
-            .pwrite_with::<AnkiVehicleMsgChangeLane>(msg, 0, scroll::LE)
-            .expect("Failed to write AnkiVehicleMsgChangeLane as bytes");
-
-        commands.push(lane_reset[..offset].to_vec());
-
-        if self.sdk_mode_on {
-            return commands;
-        }
 
         let msg: AnkiVehicleMsgSdkMode =
             anki_vehicle_msg_set_sdk_mode(1, ANKI_VEHICLE_SDK_OPTION_OVERRIDE_LOCALIZATION);
-        let mut sdk_mode = [0u8; ANKI_VEHICLE_MSG_SDK_MODE_SIZE]; // TODO: fix lifetimes problem
-        let offset = sdk_mode
+        let mut data = [0u8; ANKI_VEHICLE_MSG_SDK_MODE_SIZE];
+        let offset = data
             .pwrite_with::<AnkiVehicleMsgSdkMode>(msg, 0, scroll::LE)
             .expect("Failed to write AnkiVehicleMsgSdkMode as bytes");
 
-        commands.insert(0, sdk_mode[..offset].to_vec());
+        commands.push(data[..offset].to_vec());
+
+        let msg: AnkiVehicleMsg = anki_vehicle_msg_get_version();
+        let mut data = [0u8; ANKI_VEHICLE_MSG_VERSION_REQUEST_SIZE];
+        let offset = data
+            .pwrite_with::<AnkiVehicleMsg>(msg, 0, scroll::LE)
+            .expect("Failed to write AnkiVehicleMsg as bytes");
+
+        commands.push(data[..offset].to_vec());
+
+        let msg: AnkiVehicleMsg = anki_vehicle_msg_get_battery_level();
+        let mut data = [0u8; ANKI_VEHICLE_MSG_BATTERY_LEVEL_REQUEST_SIZE];
+        let offset = data
+            .pwrite_with::<AnkiVehicleMsg>(msg, 0, scroll::LE)
+            .expect("Failed to write AnkiVehicleMsg as bytes");
+
+        commands.push(data[..offset].to_vec());
+
+        let msg: AnkiVehicleMsgSetOffsetFromRoadCentre =
+            anki_vehicle_msg_set_offset_from_road_centre(0.0);
+        let mut data = [0u8; ANKI_VEHICLE_MSG_SET_OFFSET_FROM_ROAD_CENTRE_SIZE];
+        let offset = data
+            .pwrite_with::<AnkiVehicleMsgSetOffsetFromRoadCentre>(msg, 0, scroll::LE)
+            .expect("Failed to write AnkiVehicleMsgSetOffsetFromRoadCentre as bytes");
+
+        commands.push(data[..offset].to_vec());
+
+        let msg: AnkiVehicleMsgChangeLane = anki_vehicle_msg_change_lane(300, 2500, 0.0);
+        let mut data = [0u8; ANKI_VEHICLE_MSG_CHANGE_LANE_SIZE];
+        let offset = data
+            .pwrite_with::<AnkiVehicleMsgChangeLane>(msg, 0, scroll::LE)
+            .expect("Failed to write AnkiVehicleMsgChangeLane as bytes");
+
+        commands.push(data[..offset].to_vec());
 
         commands
     }
@@ -131,10 +192,40 @@ impl<'a> AnkiVehicle<'a> {
     ) {
         self.offset_from_road_centre_mm = data.offset_from_road_centre_mm;
     }
+
+    pub fn set_speed(speed_mm_per_sec: i16, accel_mm_per_sec2: i16) -> Vec<u8> {
+        let msg: AnkiVehicleMsgSetSpeed =
+            anki_vehicle_msg_set_speed(speed_mm_per_sec, accel_mm_per_sec2);
+        let mut set_speed = [0u8; ANKI_VEHICLE_MSG_SET_SPEED_SIZE];
+        let offset = set_speed
+            .pwrite_with::<AnkiVehicleMsgSetSpeed>(msg, 0, scroll::LE)
+            .expect("Failed to write AnkiVehicleMsgSetSpeed as bytes");
+
+        set_speed[..offset].to_vec()
+    }
+
+    pub fn change_lane(
+        horizontal_speed_mm_per_sec: u16,
+        horizontal_accel_mm_per_sec2: u16,
+        offset_from_road_centre: f32,
+    ) -> Vec<u8> {
+        let msg: AnkiVehicleMsgChangeLane = anki_vehicle_msg_change_lane(
+            horizontal_speed_mm_per_sec,
+            horizontal_accel_mm_per_sec2,
+            offset_from_road_centre,
+        );
+        let mut change_lane = [0u8; ANKI_VEHICLE_MSG_CHANGE_LANE_SIZE];
+        let offset = change_lane
+            .pwrite_with::<AnkiVehicleMsgChangeLane>(msg, 0, scroll::LE)
+            .expect("Failed to write AnkiVehicleMsgChangeLane as bytes");
+
+        change_lane[..offset].to_vec()
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::advertisement::AnkiVehicleState;
     use scroll::{Pread, Pwrite, BE};
 
     use crate::protocol::{
@@ -681,7 +772,7 @@ mod tests {
         use crate::advertisement::{AnkiVehicleAdvLocalName, ANKI_VEHICLE_ADV_LOCAL_NAME_SIZE};
 
         let data: &[u8; ANKI_VEHICLE_ADV_LOCAL_NAME_SIZE] = &[
-            0xAB, 0xCD, 0xEF, 0x1, 0x2, 0x3, 0x4, 0x5, 'l' as u8, 'o' as u8, 'c' as u8, 'a' as u8,
+            0x0, 0xCD, 0xEF, 0x1, 0x2, 0x3, 0x4, 0x5, 'l' as u8, 'o' as u8, 'c' as u8, 'a' as u8,
             'l' as u8, 'n' as u8, 'a' as u8, 'm' as u8, 'e' as u8, 't' as u8, 'e' as u8, 's' as u8,
             't' as u8,
         ];
@@ -690,7 +781,14 @@ mod tests {
             .gread_with::<AnkiVehicleAdvLocalName>(&mut 0, BE)
             .unwrap();
         println!("T:{:?} == G:{:?}", test_local_name, data);
-        assert_eq!(0xAB, test_local_name.state);
+        assert_eq!(
+            AnkiVehicleState {
+                low_battery: false,
+                full_battery: false,
+                on_charger: false
+            },
+            test_local_name.state
+        );
         assert_eq!(0xCDEF, test_local_name.version);
         assert_eq!("localnametest", test_local_name.name);
     }
@@ -716,7 +814,7 @@ mod tests {
         use crate::advertisement::{AnkiVehicleAdv, ANKI_VEHICLE_ADV_SIZE};
 
         let data: &[u8; ANKI_VEHICLE_ADV_SIZE] = &[
-            0x12, 0x34, 0x89, 0xAB, 0xCD, 0xEF, 0xAB, 0x56, 0xCD, 0xEF, 0xAB, 0xCD, 0xEF, 0x1, 0x2,
+            0x12, 0x34, 0x89, 0xAB, 0xCD, 0xEF, 0xAB, 0x56, 0xCD, 0xEF, 0x0, 0xCD, 0xEF, 0x1, 0x2,
             0x3, 0x4, 0x5, 'l' as u8, 'o' as u8, 'c' as u8, 'a' as u8, 'l' as u8, 'n' as u8,
             'a' as u8, 'm' as u8, 'e' as u8, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 0x0, 0x1,
             0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF,
@@ -734,7 +832,14 @@ mod tests {
         assert_eq!(0x89ABCDEF, test_adv.mfg_data.identifier);
         assert_eq!(0xAB, test_adv.mfg_data.model_id);
         assert_eq!(0xCDEF, test_adv.mfg_data.product_id);
-        assert_eq!(0xAB, test_adv.local_name.state);
+        assert_eq!(
+            AnkiVehicleState {
+                low_battery: false,
+                full_battery: false,
+                on_charger: false
+            },
+            test_adv.local_name.state
+        );
         assert_eq!(0xCDEF, test_adv.local_name.version);
         assert_eq!("localnametest", test_adv.local_name.name);
         assert_eq!(service_id, test_adv.service_id);

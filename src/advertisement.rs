@@ -1,9 +1,43 @@
 use scroll::ctx::StrCtx;
 use scroll::{self, ctx, Pread};
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct AnkiVehicleState {
+    pub low_battery: bool,
+    pub full_battery: bool,
+    pub on_charger: bool,
+}
+
+pub const ANKI_VEHICLE_STATE_SIZE: usize = 1;
+
+impl<'a> ctx::TryFromCtx<'a, scroll::Endian> for AnkiVehicleState {
+    type Error = scroll::Error;
+    fn try_from_ctx(data: &'a [u8], ctx: scroll::Endian) -> Result<(Self, usize), Self::Error> {
+        // TODO: This might break if a bigger size data is inputted.
+        if data.len() != ANKI_VEHICLE_STATE_SIZE {
+            return Err((scroll::Error::Custom("Incorrect num of bytes".to_string())).into());
+        }
+
+        let offset = &mut 0;
+        let state = data.gread_with::<u8>(offset, ctx)?;
+        let low_battery: bool = (state & 0b00001000) > 0;
+        let full_battery: bool = (state & 0b00000100) > 0;
+        let on_charger: bool = (state & 0b00000010) > 0;
+
+        Ok((
+            AnkiVehicleState {
+                low_battery,
+                full_battery,
+                on_charger,
+            },
+            *offset,
+        ))
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct AnkiVehicleAdvLocalName<'a> {
-    pub state: u8,
+    pub state: AnkiVehicleState,
     pub version: u16,
     _reserved: &'a [u8],
     pub name: &'a str, // UTF8: 12 bytes + NULL
@@ -20,7 +54,8 @@ impl<'a> ctx::TryFromCtx<'a, scroll::Endian> for AnkiVehicleAdvLocalName<'a> {
         }
 
         let offset = &mut 0;
-        let state: u8 = data.gread_with::<u8>(offset, ctx)?;
+        let state: AnkiVehicleState =
+            data[..ANKI_VEHICLE_STATE_SIZE].gread_with::<AnkiVehicleState>(offset, ctx)?;
         let version: u16 = data.gread_with::<u16>(offset, ctx)?;
         let _reserved: &'a [u8] = data.gread_with::<&'a [u8]>(offset, 5)?;
         let name: &str = data.gread_with::<&str>(offset, StrCtx::Length(13))?;
@@ -123,12 +158,16 @@ mod tests {
     #[test]
     fn anki_vehicle_adv_local_name_struct_test() {
         let data: &[u8; ANKI_VEHICLE_ADV_LOCAL_NAME_SIZE] = &[
-            0xAB, 0xCD, 0xEF, 0x1, 0x2, 0x3, 0x4, 0x5, 'l' as u8, 'o' as u8, 'c' as u8, 'a' as u8,
+            0x0, 0xCD, 0xEF, 0x1, 0x2, 0x3, 0x4, 0x5, 'l' as u8, 'o' as u8, 'c' as u8, 'a' as u8,
             'l' as u8, 'n' as u8, 'a' as u8, 'm' as u8, 'e' as u8, 't' as u8, 'e' as u8, 's' as u8,
             't' as u8,
         ];
         let local_name: AnkiVehicleAdvLocalName = AnkiVehicleAdvLocalName {
-            state: 0xAB,
+            state: AnkiVehicleState {
+                low_battery: false,
+                full_battery: false,
+                on_charger: false,
+            },
             version: 0xCDEF,
             _reserved: &[0x1, 0x2, 0x3, 0x4, 0x5],
             name: "localnametest",
@@ -160,7 +199,7 @@ mod tests {
     #[test]
     fn anki_vehicle_adv_struct_test() {
         let data: &[u8; ANKI_VEHICLE_ADV_SIZE] = &[
-            0x12, 0x34, 0x89, 0xAB, 0xCD, 0xEF, 0xAB, 0x56, 0xCD, 0xEF, 0xAB, 0xCD, 0xEF, 0x1, 0x2,
+            0x12, 0x34, 0x89, 0xAB, 0xCD, 0xEF, 0xAB, 0x56, 0xCD, 0xEF, 0x0, 0xCD, 0xEF, 0x1, 0x2,
             0x3, 0x4, 0x5, 'l' as u8, 'o' as u8, 'c' as u8, 'a' as u8, 'l' as u8, 'n' as u8,
             'a' as u8, 'm' as u8, 'e' as u8, 't' as u8, 'e' as u8, 's' as u8, 't' as u8, 0x0, 0x1,
             0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF,
@@ -175,7 +214,11 @@ mod tests {
                 product_id: 0xCDEF,
             },
             local_name: AnkiVehicleAdvLocalName {
-                state: 0xAB,
+                state: AnkiVehicleState {
+                    low_battery: false,
+                    full_battery: false,
+                    on_charger: false,
+                },
                 version: 0xCDEF,
                 _reserved: &[0x1, 0x2, 0x3, 0x4, 0x5],
                 name: "localnametest",
